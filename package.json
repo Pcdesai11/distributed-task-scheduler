@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "dev:backend": "npm run dev --prefix backend",
-    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev\"",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:worker\" \"npm run dev\"",
+    "dev:worker": "npm run worker:dev --prefix backend",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "db:migrate": "npm run db:migrate --prefix backend",
     "build": "tsc -b && vite build",
     "build:backend": "npm run build --prefix backend",
     "preview": "vite preview"
