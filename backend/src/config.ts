@@ -1,4 +1,4 @@
-import type { JobPriority } from '../types.js'
+import type { JobPriority } from './types.js'
 
 export const JOB_HANDLERS = [
   'webhook-retry',

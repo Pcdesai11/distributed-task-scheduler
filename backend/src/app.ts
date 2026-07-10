@@ -1,13 +1,16 @@
+import 'dotenv/config'
 import cors from 'cors'
 import express from 'express'
 import { jobsRouter, metricsRouter } from './routes/jobs.js'
 import { monitoringRouter, workersRouter } from './routes/workers.js'
+import { requireApiKey } from './middleware/auth.js'
 
 export function createApp() {
   const app = express()
 
   app.use(cors())
   app.use(express.json())
+  app.use('/api', requireApiKey)
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', service: 'chronos-scheduler' })

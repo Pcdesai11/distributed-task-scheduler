@@ -1,8 +1,8 @@
 import 'dotenv/config'
 import { Queue, Worker, type JobsOptions } from 'bullmq'
-import IORedis from 'ioredis'
 
 export const QUEUE_NAME = 'chronos-jobs'
+export const JOB_NAME = 'run-job'
 
 export interface QueueJobData {
   jobId: string
@@ -10,11 +10,23 @@ export interface QueueJobData {
   payload: Record<string, unknown>
 }
 
-const connection = new IORedis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
-  maxRetriesPerRequest: null,
-})
+function parseRedisUrl(url: string) {
+  const parsed = new URL(url)
+  return {
+    host: parsed.hostname,
+    port: Number(parsed.port || 6379),
+    password: parsed.password || undefined,
+    maxRetriesPerRequest: null as null,
+  }
+}
 
-export const jobQueue = new Queue<QueueJobData>(QUEUE_NAME, { connection })
+export const redisConnection = parseRedisUrl(
+  process.env.REDIS_URL ?? 'redis://localhost:6379',
+)
+
+export const jobQueue = new Queue<QueueJobData>(QUEUE_NAME, {
+  connection: redisConnection,
+})
 
 const PRIORITY_MAP = {
   critical: 1,
@@ -41,13 +53,7 @@ export async function enqueueJob(
   priority: keyof typeof PRIORITY_MAP,
   maxRetries: number,
 ): Promise<void> {
-  await jobQueue.add(data.handler, data, getQueueJobOptions(priority, maxRetries))
+  await jobQueue.add(JOB_NAME, data, getQueueJobOptions(priority, maxRetries))
 }
 
-export function createQueueConnection(): IORedis {
-  return new IORedis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
-    maxRetriesPerRequest: null,
-  })
-}
-
-export { Worker, connection }
+export { Worker, redisConnection as createQueueConnection }

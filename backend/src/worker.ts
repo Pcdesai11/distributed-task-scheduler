@@ -84,11 +84,10 @@ async function main() {
   await registerWorker()
   console.log(`Chronos worker ${WORKER_ID} (${WORKER_NAME}) starting...`)
 
-  const connection = createQueueConnection()
   const worker = new Worker<QueueJobData>(
     QUEUE_NAME,
     async (bullJob) => processJob(bullJob.data),
-    { connection, concurrency: 10 },
+    { connection: createQueueConnection, concurrency: 10 },
   )
 
   worker.on('failed', (job, err) => {
@@ -109,7 +108,6 @@ async function main() {
       await store.saveWorker(w)
     }
     await worker.close()
-    await connection.quit()
     process.exit(0)
   }
 

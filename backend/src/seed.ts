@@ -1,5 +1,7 @@
 import { v4 as uuid } from 'uuid'
-import { store } from './store/memoryStore.js'
+import { resolveHandler } from './config.js'
+import { enqueueJob } from './queue/index.js'
+import * as store from './store/postgresStore.js'
 import type { Job, Worker } from './types.js'
 
 const queues = ['default', 'billing', 'notifications', 'analytics', 'exports']
@@ -24,7 +26,7 @@ function minutesAgo(m: number): string {
   return new Date(Date.now() - m * 60_000).toISOString()
 }
 
-export function seedWorkers(): void {
+export async function seedWorkers(): Promise<void> {
   const workers: Worker[] = [
     {
       id: 'worker-01',
@@ -69,12 +71,12 @@ export function seedWorkers(): void {
       id: 'worker-04',
       name: 'scheduler-backup-us-west',
       region: 'us-west-2',
-      status: 'degraded',
+      status: 'healthy',
       activeJobs: 0,
       capacity: 200,
-      cpuPercent: 91,
-      memoryPercent: 88,
-      lastHeartbeat: minutesAgo(1),
+      cpuPercent: 45,
+      memoryPercent: 50,
+      lastHeartbeat: new Date().toISOString(),
       isPrimary: false,
       trafficWeight: 0,
     },
@@ -106,103 +108,80 @@ export function seedWorkers(): void {
     },
   ]
 
-  for (const w of workers) store.saveWorker(w)
+  for (const w of workers) await store.saveWorker(w)
 }
 
-export function seedJobs(count = 1200): void {
+export async function seedJobs(count = 50): Promise<void> {
   for (let i = 0; i < count; i++) {
+    const name = `${pick(jobNames)}-${i + 1}`
+    const handler = resolveHandler(name)
     const status = pick([
-      'running',
-      'running',
-      'running',
       'completed',
       'completed',
-      'queued',
       'queued',
       'failed',
-      'retrying',
     ] as Job['status'][])
 
-    const workerIds = ['worker-01', 'worker-02', 'worker-03', 'worker-05']
     const job: Job = {
       id: store.nextJobId(),
-      name: `${pick(jobNames)}-${i + 1}`,
+      name,
+      handler,
       status,
       priority: pick(['low', 'normal', 'high', 'critical']),
-      workerId: status === 'queued' ? null : pick(workerIds),
+      workerId: status === 'queued' ? null : 'worker-01',
       queue: pick(queues),
-      attempts: status === 'failed' ? 3 : status === 'retrying' ? 2 : 1,
+      attempts: status === 'failed' ? 3 : 1,
       maxRetries: 3,
       scheduledAt: minutesAgo(Math.floor(Math.random() * 120)),
       startedAt: status !== 'queued' ? minutesAgo(Math.floor(Math.random() * 30)) : null,
       completedAt: status === 'completed' ? minutesAgo(Math.floor(Math.random() * 5)) : null,
       durationMs:
-        status === 'completed' || status === 'running'
-          ? Math.floor(Math.random() * 8000) + 200
-          : null,
+        status === 'completed' ? Math.floor(Math.random() * 8000) + 200 : null,
       payload: { batchSize: Math.floor(Math.random() * 500) + 10 },
+      retryAt: null,
     }
-    store.saveJob(job)
+    await store.saveJob(job)
 
-    if (status === 'completed') store.metrics.completedToday++
-    if (status === 'failed') store.metrics.failedToday++
+    if (status === 'queued') {
+      await enqueueJob(
+        { jobId: job.id, handler: job.handler, payload: job.payload },
+        job.priority,
+        job.maxRetries,
+      )
+    }
   }
 }
 
-export function seedAlerts(): void {
-  store.alerts = [
-    {
-      id: uuid(),
-      severity: 'warning',
-      title: 'Worker degraded',
-      message: 'worker-04 CPU at 91% — traffic rerouted to worker-03 backup',
-      timestamp: minutesAgo(12),
-      resolved: false,
-    },
-    {
-      id: uuid(),
-      severity: 'critical',
-      title: 'Worker offline',
-      message: 'worker-06 missed 3 heartbeats — automatic failover triggered',
-      timestamp: minutesAgo(45),
-      resolved: true,
-    },
-    {
-      id: uuid(),
-      severity: 'info',
-      title: 'Retry batch completed',
-      message: '42 failed jobs re-queued with exponential backoff',
-      timestamp: minutesAgo(8),
-      resolved: true,
-    },
-  ]
+export async function seedAlerts(): Promise<void> {
+  await store.addAlert({
+    id: uuid(),
+    severity: 'info',
+    title: 'Scheduler online',
+    message: 'Chronos API connected to Postgres and Redis',
+    timestamp: new Date().toISOString(),
+    resolved: true,
+  })
 }
 
-export function seedFailovers(): void {
-  store.failovers = [
-    {
-      id: uuid(),
-      timestamp: minutesAgo(45),
-      fromWorker: 'worker-06',
-      toWorker: 'worker-05',
-      reason: 'Heartbeat timeout (3 consecutive misses)',
-      jobsRerouted: 34,
-    },
-    {
-      id: uuid(),
-      timestamp: minutesAgo(12),
-      fromWorker: 'worker-04',
-      toWorker: 'worker-03',
-      reason: 'CPU threshold exceeded (91%)',
-      jobsRerouted: 18,
-    },
-  ]
-  store.metrics.reroutesToday = 52
-  store.metrics.retriesToday = 187
+export async function seedFailovers(): Promise<void> {
+  await store.addFailover({
+    id: uuid(),
+    timestamp: minutesAgo(45),
+    fromWorker: 'worker-06',
+    toWorker: 'worker-05',
+    reason: 'Heartbeat timeout (3 consecutive misses)',
+    jobsRerouted: 0,
+  })
+
+  const metrics = await store.getMetricsState()
+  metrics.reroutesToday = 0
+  metrics.retriesToday = 0
+  await store.saveMetricsState(metrics)
 }
 
-export function seedMetricsHistory(): void {
-  store.metrics.successRateHistory = [
+export async function seedMetricsHistory(): Promise<void> {
+  const metrics = await store.getMetricsState()
+  metrics.successRateHistory = [
     { time: '00:00', value: 99.1 },
     { time: '04:00', value: 99.3 },
     { time: '08:00', value: 99.6 },
@@ -211,16 +190,16 @@ export function seedMetricsHistory(): void {
     { time: '20:00', value: 99.52 },
     { time: 'Now', value: 99.52 },
   ]
-  store.metrics.throughputHistory = [
-    { time: '00:00', value: 820 },
-    { time: '04:00', value: 640 },
-    { time: '08:00', value: 1100 },
-    { time: '12:00', value: 1340 },
-    { time: '16:00', value: 1280 },
-    { time: '20:00', value: 1050 },
-    { time: 'Now', value: 1247 },
+  metrics.throughputHistory = [
+    { time: '00:00', value: 20 },
+    { time: '04:00', value: 15 },
+    { time: '08:00', value: 35 },
+    { time: '12:00', value: 42 },
+    { time: '16:00', value: 38 },
+    { time: '20:00', value: 30 },
+    { time: 'Now', value: 25 },
   ]
-  store.metrics.latencyHistory = [
+  metrics.latencyHistory = [
     { time: '00:00', value: 410 },
     { time: '04:00', value: 380 },
     { time: '08:00', value: 520 },
@@ -229,12 +208,42 @@ export function seedMetricsHistory(): void {
     { time: '20:00', value: 330 },
     { time: 'Now', value: 342 },
   ]
+  await store.saveMetricsState(metrics)
 }
 
-export function seedAll(): void {
-  seedWorkers()
-  seedJobs(1200)
-  seedAlerts()
-  seedFailovers()
-  seedMetricsHistory()
+interface SeedOptions {
+  workersOnly?: boolean
+  metricsOnly?: boolean
+}
+
+export async function seedAll(options: SeedOptions = {}): Promise<void> {
+  if (options.metricsOnly) {
+    await seedMetricsHistory()
+    return
+  }
+  if (options.workersOnly) {
+    await seedWorkers()
+    return
+  }
+  await seedWorkers()
+  await seedJobs(50)
+  await seedAlerts()
+  await seedFailovers()
+  await seedMetricsHistory()
+}
+
+if (import.meta.url.endsWith(process.argv[1]?.replace(/\\/g, '/') ?? '')) {
+  ;(async () => {
+    const { migrate } = await import('drizzle-orm/node-postgres/migrator')
+    const { db, closeDb } = await import('./db/index.js')
+    await migrate(db, { migrationsFolder: './drizzle' })
+    await store.initJobCounter()
+    await seedAll()
+    console.log('Seed complete.')
+    await closeDb()
+    process.exit(0)
+  })().catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
 }
