@@ -15,6 +15,7 @@ export type AlertSeverity = 'info' | 'warning' | 'critical'
 export interface Job {
   id: string
   name: string
+  handler: string
   status: JobStatus
   priority: JobPriority
   workerId: string | null
@@ -80,7 +81,25 @@ export interface TimeSeriesPoint {
 export interface CreateJobInput {
   name: string
   queue: string
+  handler?: string
   priority: JobPriority
   maxRetries: number
   payload: Record<string, unknown>
 }
+
+export interface JobsPageResponse {
+  jobs: Job[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+export const JOB_HANDLERS = [
+  'webhook-retry',
+  'email-digest',
+  'report-export',
+  'invoice-sync',
+  'data-backfill',
+  'generic',
+] as const

@@ -11,13 +11,14 @@ import { MetricChart } from '../components/dashboard/MetricChart'
 import { Header } from '../components/layout/Header'
 import { AlertList, FailoverTimeline } from '../components/monitoring/AlertPanel'
 import { StatCard } from '../components/ui/StatCard'
+import { PageError } from '../components/ui/ErrorBanner'
 import { useDashboardData, useMonitoring } from '../hooks/useSchedulerData'
 
 export function DashboardPage() {
-  const { metrics, successRate, throughput, latency, loading, refresh } = useDashboardData()
+  const { metrics, successRate, throughput, latency, loading, error, refresh } = useDashboardData()
   const { alerts, failovers } = useMonitoring()
 
-  if (loading || !metrics) {
+  if (loading && !metrics) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <RefreshCw className="h-6 w-6 animate-spin text-cyan-500" />
@@ -25,11 +26,15 @@ export function DashboardPage() {
     )
   }
 
+  if (!metrics) {
+    return <PageError message={error}><></></PageError>
+  }
+
   return (
     <>
       <Header
         title="Dashboard"
-        subtitle="Real-time overview of 1,000+ concurrent jobs"
+        subtitle="Real-time overview of distributed job execution"
         onRefresh={refresh}
       />
       <div className="flex-1 overflow-y-auto p-8">

@@ -5,6 +5,7 @@ import type {
   DashboardMetrics,
   FailoverEvent,
   Job,
+  JobStatus,
   Worker,
   TimeSeriesPoint,
 } from '../api/types'
@@ -15,20 +16,27 @@ export function useDashboardData() {
   const [throughput, setThroughput] = useState<TimeSeriesPoint[]>([])
   const [latency, setLatency] = useState<TimeSeriesPoint[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
-    const [m, sr, tp, lat] = await Promise.all([
-      api.fetchMetrics(),
-      api.fetchSuccessRateHistory(),
-      api.fetchThroughputHistory(),
-      api.fetchLatencyHistory(),
-    ])
-    setMetrics(m)
-    setSuccessRate(sr)
-    setThroughput(tp)
-    setLatency(lat)
-    setLoading(false)
+    setError(null)
+    try {
+      const [m, sr, tp, lat] = await Promise.all([
+        api.fetchMetrics(),
+        api.fetchSuccessRateHistory(),
+        api.fetchThroughputHistory(),
+        api.fetchLatencyHistory(),
+      ])
+      setMetrics(m)
+      setSuccessRate(sr)
+      setThroughput(tp)
+      setLatency(lat)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -37,34 +45,53 @@ export function useDashboardData() {
     return () => clearInterval(interval)
   }, [refresh])
 
-  return { metrics, successRate, throughput, latency, loading, refresh }
+  return { metrics, successRate, throughput, latency, loading, error, refresh }
 }
 
-export function useJobs() {
+export function useJobs(page = 1, limit = 50, status: JobStatus | 'all' = 'all') {
   const [jobs, setJobs] = useState<Job[]>([])
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
-    setJobs(await api.fetchJobs())
-    setLoading(false)
-  }, [])
+    setError(null)
+    try {
+      const result = await api.fetchJobsPage(page, limit, status)
+      setJobs(result.jobs)
+      setTotal(result.total)
+      setTotalPages(result.totalPages)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [page, limit, status])
 
   useEffect(() => {
     refresh()
   }, [refresh])
 
-  return { jobs, loading, refresh }
+  return { jobs, total, totalPages, loading, error, refresh }
 }
 
 export function useWorkers() {
   const [workers, setWorkers] = useState<Worker[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
-    setWorkers(await api.fetchWorkers())
-    setLoading(false)
+    setError(null)
+    try {
+      setWorkers(await api.fetchWorkers())
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -73,7 +100,7 @@ export function useWorkers() {
     return () => clearInterval(interval)
   }, [refresh])
 
-  return { workers, loading, refresh }
+  return { workers, loading, error, refresh }
 }
 
 export function useMonitoring() {
@@ -81,18 +108,25 @@ export function useMonitoring() {
   const [failovers, setFailovers] = useState<FailoverEvent[]>([])
   const [queueDepth, setQueueDepth] = useState<TimeSeriesPoint[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
-    const [a, f, q] = await Promise.all([
-      api.fetchAlerts(),
-      api.fetchFailoverEvents(),
-      api.fetchQueueDepth(),
-    ])
-    setAlerts(a)
-    setFailovers(f)
-    setQueueDepth(q)
-    setLoading(false)
+    setError(null)
+    try {
+      const [a, f, q] = await Promise.all([
+        api.fetchAlerts(),
+        api.fetchFailoverEvents(),
+        api.fetchQueueDepth(),
+      ])
+      setAlerts(a)
+      setFailovers(f)
+      setQueueDepth(q)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -101,5 +135,5 @@ export function useMonitoring() {
     return () => clearInterval(interval)
   }, [refresh])
 
-  return { alerts, failovers, queueDepth, loading, refresh }
+  return { alerts, failovers, queueDepth, loading, error, refresh }
 }

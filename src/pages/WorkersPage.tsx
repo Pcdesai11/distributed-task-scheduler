@@ -2,10 +2,11 @@ import { triggerFailover } from '../api/schedulerApi'
 import { Header } from '../components/layout/Header'
 import { WorkerCard } from '../components/workers/WorkerCard'
 import { Card } from '../components/ui/Card'
+import { PageError } from '../components/ui/ErrorBanner'
 import { useWorkers } from '../hooks/useSchedulerData'
 
 export function WorkersPage() {
-  const { workers, loading, refresh } = useWorkers()
+  const { workers, loading, error, refresh } = useWorkers()
 
   const healthy = workers.filter((w) => w.status === 'healthy').length
   const totalCapacity = workers.reduce((s, w) => s + w.capacity, 0)
@@ -18,6 +19,7 @@ export function WorkersPage() {
         subtitle="Distributed worker nodes with automatic failover"
         onRefresh={refresh}
       />
+      <PageError message={error}>
       <div className="flex-1 overflow-y-auto p-8">
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Card>
@@ -57,6 +59,7 @@ export function WorkersPage() {
           </div>
         )}
       </div>
+      </PageError>
     </>
   )
 }

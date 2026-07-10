@@ -6,10 +6,11 @@ import { AlertList, FailoverTimeline } from '../components/monitoring/AlertPanel
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { PageError } from '../components/ui/ErrorBanner'
 import { useMonitoring } from '../hooks/useSchedulerData'
 
 export function MonitoringPage() {
-  const { alerts, failovers, queueDepth, loading, refresh } = useMonitoring()
+  const { alerts, failovers, queueDepth, loading, error, refresh } = useMonitoring()
 
   const activeAlerts = alerts.filter((a) => !a.resolved)
   const resolvedAlerts = alerts.filter((a) => a.resolved)
@@ -21,6 +22,7 @@ export function MonitoringPage() {
         subtitle="24/7 health checks with automatic failover"
         onRefresh={refresh}
       />
+      <PageError message={error}>
       <div className="flex-1 overflow-y-auto p-8">
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Card>
@@ -126,6 +128,7 @@ export function MonitoringPage() {
           </>
         )}
       </div>
+      </PageError>
     </>
   )
 }

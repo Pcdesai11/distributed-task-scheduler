@@ -4,11 +4,12 @@ import type {
   DashboardMetrics,
   FailoverEvent,
   Job,
+  JobsPageResponse,
   Worker,
   TimeSeriesPoint,
 } from './types'
 
-const API = '/api'
+const API = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
@@ -27,8 +28,14 @@ export async function fetchMetrics(): Promise<DashboardMetrics> {
   return request('/metrics')
 }
 
-export async function fetchJobs(): Promise<Job[]> {
-  return request('/jobs')
+export async function fetchJobsPage(
+  page = 1,
+  limit = 50,
+  status?: string,
+): Promise<JobsPageResponse> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+  if (status && status !== 'all') params.set('status', status)
+  return request(`/jobs?${params}`)
 }
 
 export async function fetchWorkers(): Promise<Worker[]> {

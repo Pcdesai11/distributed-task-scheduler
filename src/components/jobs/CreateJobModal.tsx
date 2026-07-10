@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import type { CreateJobInput, JobPriority } from '../../api/types'
+import { JOB_HANDLERS } from '../../api/types'
 import { Button } from '../ui/Button'
 
 interface CreateJobModalProps {
@@ -16,6 +17,7 @@ export function CreateJobModal({ open, onClose, onSubmit }: CreateJobModalProps)
   const [name, setName] = useState('')
   const [queue, setQueue] = useState('default')
   const [priority, setPriority] = useState<JobPriority>('normal')
+  const [handler, setHandler] = useState('generic')
   const [maxRetries, setMaxRetries] = useState(3)
   const [submitting, setSubmitting] = useState(false)
 
@@ -27,6 +29,7 @@ export function CreateJobModal({ open, onClose, onSubmit }: CreateJobModalProps)
     await onSubmit({
       name,
       queue,
+      handler,
       priority,
       maxRetries,
       payload: { source: 'dashboard' },
@@ -73,6 +76,19 @@ export function CreateJobModal({ open, onClose, onSubmit }: CreateJobModalProps)
               {priorities.map((p) => (
                 <option key={p} value={p}>
                   {p}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Handler">
+            <select
+              value={handler}
+              onChange={(e) => setHandler(e.target.value)}
+              className={inputClass}
+            >
+              {JOB_HANDLERS.map((h) => (
+                <option key={h} value={h}>
+                  {h}
                 </option>
               ))}
             </select>
