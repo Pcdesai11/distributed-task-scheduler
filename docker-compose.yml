@@ -25,5 +25,47 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - '3001:3001'
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://chronos:chronos@postgres:5432/chronos
+      REDIS_URL: redis://redis:6379
+      API_KEY: ${API_KEY:-change-me-in-production}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    environment:
+      DATABASE_URL: postgresql://chronos:chronos@postgres:5432/chronos
+      REDIS_URL: redis://redis:6379
+      WORKER_ID: worker-01
+      WORKER_NAME: scheduler-primary-us-east
+      WORKER_REGION: us-east-1
+      WORKER_CAPACITY: 200
+    depends_on:
+      api:
+        condition: service_started
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '8080:80'
+    depends_on:
+      - api
+
 volumes:
   postgres_data:
