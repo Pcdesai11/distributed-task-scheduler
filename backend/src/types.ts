@@ -15,6 +15,7 @@ export type AlertSeverity = 'info' | 'warning' | 'critical'
 export interface Job {
   id: string
   name: string
+  handler: string
   status: JobStatus
   priority: JobPriority
   workerId: string | null
@@ -81,6 +82,7 @@ export interface TimeSeriesPoint {
 export interface CreateJobInput {
   name: string
   queue: string
+  handler?: string
   priority: JobPriority
   maxRetries: number
   payload: Record<string, unknown>
@@ -97,12 +99,3 @@ export interface MetricsSnapshot {
   latencyHistory: TimeSeriesPoint[]
   serverStartedAt: number
 }
-
-export const PRIORITY_WEIGHT: Record<JobPriority, number> = {
-  critical: 4,
-  high: 3,
-  normal: 2,
-  low: 1,
-}
-
-export const SUCCESS_RATE_TARGET = 0.995
